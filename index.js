@@ -52,6 +52,8 @@ const runTests = async (githubLink, repoPath) => {
 
         // Use npm test -- --ci=true to run tests non-interactively
         const npmTest = spawn('npm', ['test', '--', '--ci=true'], { stdio: 'inherit' });
+
+        // const npmTest = spawn('npm', ['test', '--', '--ci=true'], { stdio: 'inherit' });
         await new Promise((resolve, reject) => {
           npmTest.on('close', (code) => {
             if (code !== 0) {
