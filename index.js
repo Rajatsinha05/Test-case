@@ -1,6 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const { spawn } = require('cross-spawn');
+const { spawn } = require('child_process');
 const connecton = require('./db');
 const fs = require('fs').promises;
 
@@ -17,103 +17,81 @@ const TestResult = mongoose.model('TestResult', testResultSchema);
 
 app.use(express.json());
 
-const asyncMiddleware = (fn) => (req, res, next) => {
+const runTests = async (githubLink, repoPath) => {
   try {
-    fn(req, res, next).catch(next);
+    // Clone repository
+    const gitClone = spawn('git', ['clone', githubLink, repoPath], { stdio: 'inherit' });
+    await new Promise((resolve, reject) => {
+      gitClone.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Git clone process exited with code ${code}`));
+        }
+      });
+    });
+
+    // Change directory
+    process.chdir(repoPath);
+
+    // Install dependencies
+    const npmCi = spawn('npm', ['ci'], { stdio: 'inherit' });
+    await new Promise((resolve, reject) => {
+      npmCi.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`npm ci process exited with code ${code}`));
+        }
+      });
+    });
+
+    // Run tests
+    const npmTest = spawn('npm', ['test', '--', '--watchAll', '--ci=true'], { stdio: 'inherit' });
+    await new Promise((resolve, reject) => {
+      npmTest.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`npm test process exited with code ${code}`));
+        }
+      });
+    });
+
+    return { success: true, testResults: 'Tests completed successfully' };
   } catch (error) {
-    next(error);
+    throw new Error(`Error running tests: ${error.message}`);
   }
 };
 
-const runTests = async (githubLink, repoPath) => {
-  const gitClone = spawn('git', ['clone', githubLink, repoPath], { stdio: 'inherit' });
-  console.log('gitClone: ', gitClone);
-
-  return new Promise((resolve, reject) => {
-    gitClone.on('close', async (code) => {
-      if (code !== 0) {
-        reject(new Error(`Git clone process exited with code ${code}`));
-        return;
-      }
-
-      process.chdir(repoPath);
-
-      try {
-        
-        // Use npm ci for faster installations
-         const npmCi = spawn('npm', ['ci'], { stdio: 'pipe' });
-        // const npmCi=spawn();
-        console.log('npmCi: ', npmCi);
-        await new Promise((resolve, reject) => {
-        console.log("test case checking testest test");
-
-          npmCi.on('close', (code) => {
-            if (code !== 0) {
-              reject(new Error(`npm ci process exited with code ${code}`));
-              return;
-            }
-            console.log("resolve");
-            resolve();
-          });
-        });
-
-        console.log("test case checking");
-        // Use npm test -- --ci=true to run tests non-interactively
-        const npmTest = spawn('npm', ['test', '--',"--watchAll", '--ci=true'], { stdio: 'inherit' });
-        console.log('npmTest: ', npmTest);
-
-        // const npmTest = spawn('npm', ['test', '--', '--ci=true'], { stdio: 'inherit' });
-        await new Promise((resolve, reject) => {
-          npmTest.on('close', (code) => {
-            if (code !== 0) {
-              reject(new Error(`npm test process exited with code ${code}`));
-              return;
-            }
-            resolve();
-          });
-        });
-
-        return { success: true, testResults: 'Tests completed successfully' };
-      } catch (error) {
-        throw new Error(`Error running tests: ${error.message}`);
-      }
-    });
-  });
-};
-
-app.post('/runtests', asyncMiddleware(async (req, res) => {
+app.post('/runtests', async (req, res) => {
   const { githubLink } = req.body;
   const repoPath = `./temp/${Date.now()}`;
-  console.log('repoPath: ', repoPath);
 
   try {
     const { success, testResults } = await runTests(githubLink, repoPath);
 
     const testResult = new TestResult({ githubLink, success, testResults });
-    console.log('testResult: ', testResult);
     await testResult.save();
 
     res.status(200).json({ success, testResults });
   } catch (error) {
     const testResult = new TestResult({ githubLink, success: false, testResults: error.message });
-    console.log('testResult: ', testResult);
     await testResult.save();
-    return res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error.message });
   } finally {
-    // Use fs.promises.rmdir for asynchronous directory removal
-    await fs.rmdir(repoPath, { recursive: true });
-    console.log("final");
+    await fs.promises.rm(repoPath, { recursive: true });
   }
-}));
+});
 
-app.get('/testresults', asyncMiddleware(async (req, res) => {
+app.get('/testresults', async (req, res) => {
   try {
     const results = await TestResult.find();
     res.json({ testResults: results });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-}));
+});
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

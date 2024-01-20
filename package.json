@@ -15,7 +15,7 @@
     "execa": "^4.1.0",
     "express": "^4.18.2",
     "fs.promises": "^0.1.2",
-    "mongoose": "^8.0.4",
+    "mongoose": "^8.1.0",
     "promisify": "^0.0.3",
     "rimraf": "^5.0.5",
     "util": "^0.12.5"
