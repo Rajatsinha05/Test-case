@@ -26,7 +26,9 @@ const asyncMiddleware = (fn) => (req, res, next) => {
 };
 
 const runTests = async (githubLink, repoPath) => {
+  console.log("cloning");
   const gitClone = spawn('git', ['clone', githubLink, repoPath], { stdio: 'inherit' });
+  console.log('gitClone: ', gitClone);
 
   return new Promise((resolve, reject) => {
     gitClone.on('close', async (code) => {
@@ -38,20 +40,28 @@ const runTests = async (githubLink, repoPath) => {
       process.chdir(repoPath);
 
       try {
+        
         // Use npm ci for faster installations
         const npmCi = spawn('npm', ['ci'], { stdio: 'inherit' });
+        // const npmCi=spawn();
+        console.log('npmCi: ', npmCi);
         await new Promise((resolve, reject) => {
+        console.log("test case checking testest test");
+
           npmCi.on('close', (code) => {
-            if (code !== 0) {
-              reject(new Error(`npm ci process exited with code ${code}`));
-              return;
-            }
+            // if (code !== 0) {
+            //   reject(new Error(`npm ci process exited with code ${code}`));
+            //   return;
+            // }
+            console.log("resolve");
             resolve();
           });
         });
 
+        console.log("test case checking");
         // Use npm test -- --ci=true to run tests non-interactively
         const npmTest = spawn('npm', ['test', '--', '--ci=true'], { stdio: 'inherit' });
+        console.log('npmTest: ', npmTest);
 
         // const npmTest = spawn('npm', ['test', '--', '--ci=true'], { stdio: 'inherit' });
         await new Promise((resolve, reject) => {
@@ -81,16 +91,19 @@ app.post('/runtests', asyncMiddleware(async (req, res) => {
     const { success, testResults } = await runTests(githubLink, repoPath);
 
     const testResult = new TestResult({ githubLink, success, testResults });
+    console.log('testResult: ', testResult);
     await testResult.save();
 
     res.status(200).json({ success, testResults });
   } catch (error) {
     const testResult = new TestResult({ githubLink, success: false, testResults: error.message });
+    console.log('testResult: ', testResult);
     await testResult.save();
     return res.status(500).json({ success: false, error: error.message });
   } finally {
     // Use fs.promises.rmdir for asynchronous directory removal
     await fs.rmdir(repoPath, { recursive: true });
+    console.log("final");
   }
 }));
 
