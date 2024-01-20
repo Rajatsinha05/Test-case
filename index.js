@@ -26,7 +26,6 @@ const asyncMiddleware = (fn) => (req, res, next) => {
 };
 
 const runTests = async (githubLink, repoPath) => {
-  console.log("cloning");
   const gitClone = spawn('git', ['clone', githubLink, repoPath], { stdio: 'inherit' });
   console.log('gitClone: ', gitClone);
 
@@ -42,17 +41,17 @@ const runTests = async (githubLink, repoPath) => {
       try {
         
         // Use npm ci for faster installations
-        const npmCi = spawn('npm', ['ci'], { stdio: 'inherit' });
+         const npmCi = spawn('npm', ['ci'], { stdio: 'pipe' });
         // const npmCi=spawn();
         console.log('npmCi: ', npmCi);
         await new Promise((resolve, reject) => {
         console.log("test case checking testest test");
 
           npmCi.on('close', (code) => {
-            // if (code !== 0) {
-            //   reject(new Error(`npm ci process exited with code ${code}`));
-            //   return;
-            // }
+            if (code !== 0) {
+              reject(new Error(`npm ci process exited with code ${code}`));
+              return;
+            }
             console.log("resolve");
             resolve();
           });
@@ -60,7 +59,7 @@ const runTests = async (githubLink, repoPath) => {
 
         console.log("test case checking");
         // Use npm test -- --ci=true to run tests non-interactively
-        const npmTest = spawn('npm', ['test', '--', '--ci=true'], { stdio: 'inherit' });
+        const npmTest = spawn('npm', ['test', '--',"--watchAll", '--ci=true'], { stdio: 'inherit' });
         console.log('npmTest: ', npmTest);
 
         // const npmTest = spawn('npm', ['test', '--', '--ci=true'], { stdio: 'inherit' });
