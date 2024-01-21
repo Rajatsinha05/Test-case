@@ -80,7 +80,8 @@ app.post('/runtests', async (req, res) => {
     await testResult.save();
     res.status(500).json({ success: false, error: error.message });
   } finally {
-    await fs.promises.rm(repoPath, { recursive: true });
+    // await fs.promises.rm(repoPath, { recursive: true });
+    console.log("ewrtyuginokml,;");
   }
 });
 
